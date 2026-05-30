@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Canvas } from './components/Canvas';
 import { Toolbar } from './components/Toolbar';
 import { RoutePanel } from './components/RoutePanel';
+import { EdgeWeightModal } from './components/EdgeWeightModal';
 import { useGraph } from './hooks/useGraph';
 import { useCanvas } from './hooks/useCanvas';
 import { GRAPH_ID, MODES } from './constants';
@@ -18,21 +19,58 @@ export default function App() {
     removeEdge: graph.removeEdge,
   });
 
+  // Route building: sequence of node ids clicked in ROUTE mode
+  const [routeSequence, setRouteSequence] = useState([]);
+
   // Load on mount
   useEffect(() => { graph.loadGraph(); }, []);
 
-  // Keyboard shortcut for mode switching
+  // Keyboard shortcuts for mode
   useEffect(() => {
     const handler = (e) => {
       if (e.target.tagName === 'INPUT') return;
-      if (e.key === 'v' || e.key === 'V') canvas.setMode(MODES.SELECT);
-      if (e.key === 'n' || e.key === 'N') canvas.setMode(MODES.ADD_NODE);
-      if (e.key === 'e' || e.key === 'E') canvas.setMode(MODES.ADD_EDGE);
-      if (e.key === 'd' || e.key === 'D') canvas.setMode(MODES.DELETE);
+      const map = { v: MODES.SELECT, V: MODES.SELECT, n: MODES.ADD_NODE, N: MODES.ADD_NODE,
+                    e: MODES.ADD_EDGE, E: MODES.ADD_EDGE, d: MODES.DELETE, D: MODES.DELETE,
+                    r: MODES.ROUTE,   R: MODES.ROUTE };
+      if (map[e.key]) canvas.setMode(map[e.key]);
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [canvas]);
+
+  // Handle node click in ROUTE mode
+  const handleNodePointerDown = (e, nodeId) => {
+    if (canvas.mode === MODES.ROUTE) {
+      e.stopPropagation();
+      setRouteSequence((prev) => {
+        if (prev.includes(nodeId)) return prev; // avoid duplicate
+        return [...prev, nodeId];
+      });
+      return;
+    }
+    canvas.onNodePointerDown(e, nodeId);
+  };
+
+  // When pendingEdge is set (two nodes selected in ADD_EDGE mode), show modal
+  const handleEdgeConfirm = (label, weight) => {
+    const { sourceId, targetId } = canvas.pendingEdge;
+    graph.addEdge(sourceId, targetId, label, weight, graph.nodes);
+    canvas.clearPendingEdge();
+  };
+
+  const handleEdgeCancel = () => canvas.clearPendingEdge();
+
+  const handleSaveRoute = (name, sequence) => {
+    graph.addRoute(name, sequence, graph.nodes, graph.edges);
+    setRouteSequence([]);
+  };
+
+  const sourceLabel = canvas.pendingEdge
+    ? graph.nodes.find((n) => n.id === canvas.pendingEdge.sourceId)?.label || '?'
+    : '';
+  const targetLabel = canvas.pendingEdge
+    ? graph.nodes.find((n) => n.id === canvas.pendingEdge.targetId)?.label || '?'
+    : '';
 
   return (
     <>
@@ -51,39 +89,47 @@ export default function App() {
         selected={canvas.selected}
         edgeSource={canvas.edgeSource}
         ghostLine={canvas.ghostLine}
+        routeSequence={routeSequence}
         onCanvasPointerDown={canvas.onCanvasPointerDown}
-        onNodePointerDown={canvas.onNodePointerDown}
+        onNodePointerDown={handleNodePointerDown}
         onPointerMove={canvas.onPointerMove}
         onPointerUp={canvas.onPointerUp}
         onKeyDown={canvas.onKeyDown}
         onEdgeClick={canvas.onEdgeClick}
         onLabelChange={graph.updateNodeLabel}
-        onEdgeLabelChange={graph.updateEdgeLabel}
-        onEdgeWeightChange={graph.updateEdgeWeight}
+        onEdgeLabelChange={(id, label) => graph.updateEdgeLabel(id, label, graph.nodes)}
+        onEdgeWeightChange={(id, w) => graph.updateEdgeWeight(id, w, graph.nodes)}
       />
 
       <RoutePanel
         nodes={graph.nodes}
+        edges={graph.edges}
         routes={graph.routes}
-        onAddRoute={graph.addRoute}
+        routeSequence={routeSequence}
         onRemoveRoute={graph.removeRoute}
-        onCalcRoute={graph.calcRoute}
+        onClearRoute={() => setRouteSequence([])}
+        onSaveRoute={handleSaveRoute}
       />
 
-      {graph.loading && (
-        <div style={styles.loader}>Carregando grafo…</div>
+      {canvas.pendingEdge?.targetId && (
+        <EdgeWeightModal
+          sourceLabel={sourceLabel}
+          targetLabel={targetLabel}
+          onConfirm={handleEdgeConfirm}
+          onCancel={handleEdgeCancel}
+        />
       )}
+
+      {graph.loading && <div style={styles.loader}>Carregando…</div>}
     </>
   );
 }
 
 const styles = {
   loader: {
-    position: 'fixed', bottom: 20, left: '50%',
-    transform: 'translateX(-50%)',
-    background: 'rgba(74,144,217,0.9)',
-    color: '#fff', padding: '6px 16px',
-    borderRadius: 20, fontSize: 11,
+    position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+    background: 'rgba(74,144,217,0.9)', color: '#fff',
+    padding: '6px 18px', borderRadius: 20, fontSize: 11,
     fontFamily: "'Syne', sans-serif", fontWeight: 700,
   },
 };

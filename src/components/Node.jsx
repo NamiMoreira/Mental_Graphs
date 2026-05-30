@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { NODE_RADIUS } from '../constants';
 
-export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLabelChange }) {
+export function Node({ node, isSelected, isEdgeSource, isRouteNode, mode, onPointerDown, onLabelChange }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(node.label);
 
@@ -16,20 +16,38 @@ export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLa
     if (draft.trim() && draft !== node.label) onLabelChange(node.id, draft.trim());
   };
 
-  const ringColor = isEdgeSource ? '#F39C12' : isSelected ? '#fff' : 'transparent';
-  const ringWidth = isSelected || isEdgeSource ? 3 : 0;
+  const ringColor = isRouteNode ? '#2ECC71' : isEdgeSource ? '#F39C12' : isSelected ? '#fff' : 'transparent';
+  const ringWidth = isSelected || isEdgeSource || isRouteNode ? 3 : 0;
+
+  // Wrap label into lines of ~12 chars
+  const words = node.label.split(' ');
+  const lines = [];
+  let current = '';
+  for (const w of words) {
+    if ((current + ' ' + w).trim().length > 13) {
+      if (current) lines.push(current.trim());
+      current = w;
+    } else {
+      current = (current + ' ' + w).trim();
+    }
+  }
+  if (current) lines.push(current.trim());
+  const lineHeight = 14;
+  const startY = -(lines.length - 1) * lineHeight / 2;
+
+  const cursor = mode === 'delete' ? 'not-allowed' : mode === 'add_edge' || mode === 'route' ? 'crosshair' : 'grab';
 
   return (
     <g
       transform={`translate(${node.x},${node.y})`}
-      style={{ cursor: mode === 'delete' ? 'not-allowed' : mode === 'add_edge' ? 'crosshair' : 'grab' }}
+      style={{ cursor }}
       onPointerDown={(e) => onPointerDown(e, node.id)}
       onDoubleClick={handleDoubleClick}
     >
       {/* Shadow */}
-      <ellipse cx={2} cy={6} rx={NODE_RADIUS + 2} ry={14} fill="rgba(0,0,0,0.25)" />
+      <ellipse cx={3} cy={NODE_RADIUS - 4} rx={NODE_RADIUS} ry={12} fill="rgba(0,0,0,0.3)" />
 
-      {/* Main balloon */}
+      {/* Body */}
       <circle
         r={NODE_RADIUS}
         fill={node.color || '#4A90D9'}
@@ -38,9 +56,9 @@ export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLa
         style={{ filter: isSelected ? 'brightness(1.2)' : 'none', transition: 'all 0.15s' }}
       />
 
-      {/* Balloon tail */}
+      {/* Tail */}
       <path
-        d={`M -8 ${NODE_RADIUS - 6} Q 0 ${NODE_RADIUS + 16} 8 ${NODE_RADIUS - 6}`}
+        d={`M -10 ${NODE_RADIUS - 8} Q 0 ${NODE_RADIUS + 20} 10 ${NODE_RADIUS - 8}`}
         fill={node.color || '#4A90D9'}
       />
 
@@ -48,7 +66,6 @@ export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLa
       {!editing ? (
         <text
           textAnchor="middle"
-          dominantBaseline="middle"
           fill="#fff"
           fontSize="12"
           fontFamily="'Syne', sans-serif"
@@ -56,10 +73,12 @@ export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLa
           pointerEvents="none"
           style={{ userSelect: 'none' }}
         >
-          {node.label.length > 10 ? node.label.slice(0, 9) + '…' : node.label}
+          {lines.map((line, i) => (
+            <tspan key={i} x={0} y={startY + i * lineHeight} dominantBaseline="middle">{line}</tspan>
+          ))}
         </text>
       ) : (
-        <foreignObject x={-NODE_RADIUS + 4} y={-14} width={(NODE_RADIUS - 4) * 2} height={28}>
+        <foreignObject x={-(NODE_RADIUS - 6)} y={-16} width={(NODE_RADIUS - 6) * 2} height={32}>
           <input
             autoFocus
             value={draft}
@@ -73,6 +92,11 @@ export function Node({ node, isSelected, isEdgeSource, mode, onPointerDown, onLa
             }}
           />
         </foreignObject>
+      )}
+
+      {/* Route order badge */}
+      {isRouteNode && (
+        <circle cx={NODE_RADIUS - 8} cy={-(NODE_RADIUS - 8)} r={10} fill="#2ECC71" />
       )}
     </g>
   );
