@@ -52,9 +52,16 @@ export default function App() {
   };
 
   // When pendingEdge is set (two nodes selected in ADD_EDGE mode), show modal
-  const handleEdgeConfirm = (label, weight) => {
+  const handleEdgeConfirm = (label, weight, direction = 'forward') => {
     const { sourceId, targetId } = canvas.pendingEdge;
-    graph.addEdge(sourceId, targetId, label, weight, graph.nodes);
+    if (direction === 'forward') {
+      graph.addEdge(sourceId, targetId, label, weight, graph.nodes);
+    } else if (direction === 'backward') {
+      graph.addEdge(targetId, sourceId, label, weight, graph.nodes);
+    } else if (direction === 'both') {
+      graph.addEdge(sourceId, targetId, label, weight, graph.nodes);
+      graph.addEdge(targetId, sourceId, label, weight, graph.nodes);
+    }
     canvas.clearPendingEdge();
   };
 
@@ -95,6 +102,9 @@ export default function App() {
         onPointerMove={canvas.onPointerMove}
         onPointerUp={canvas.onPointerUp}
         onKeyDown={canvas.onKeyDown}
+        scale={canvas.scale}
+        pan={canvas.pan}
+        onWheel={canvas.onWheel}
         onEdgeClick={canvas.onEdgeClick}
         onLabelChange={graph.updateNodeLabel}
         onEdgeLabelChange={(id, label) => graph.updateEdgeLabel(id, label, graph.nodes)}

@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { Node } from './Node';
-import { Edge, GhostLine } from './Edge';
+import { Edge, GhostLine, ArrowHead } from './Edge';
 
 export function Canvas({
   nodes, edges,
@@ -8,6 +8,7 @@ export function Canvas({
   onCanvasPointerDown, onNodePointerDown,
   onPointerMove, onPointerUp, onKeyDown,
   onEdgeClick, onLabelChange, onEdgeLabelChange, onEdgeWeightChange,
+  scale = 1, pan = { x: 0, y: 0 }, onWheel = () => {},
 }) {
   useEffect(() => {
     window.addEventListener('keydown', onKeyDown);
@@ -23,8 +24,11 @@ export function Canvas({
 
   // Fires for any click on SVG that is NOT a node or edge
   const handleSVGPointerDown = (e) => {
-    const tag = e.target.tagName.toLowerCase();
-    if (tag === 'circle' || tag === 'text' || tag === 'tspan' || tag === 'path') return;
+    // Treat clicks on background shapes (rect, pattern, etc.) as canvas pointer down,
+    // but ignore clicks on interactive elements like nodes/edges/text/inputs.
+    const tag = e.target.tagName && e.target.tagName.toLowerCase();
+    const ignore = ['circle', 'text', 'tspan', 'path', 'ellipse', 'foreignobject', 'input', 'polygon'];
+    if (ignore.includes(tag)) return;
     onCanvasPointerDown(e);
   };
 
@@ -36,6 +40,7 @@ export function Canvas({
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={onPointerUp}
+      onWheel={onWheel}
     >
       <defs>
         <marker id="arrow" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
@@ -53,33 +58,41 @@ export function Canvas({
       <rect width="100%" height="100%" fill="url(#bgGrad)" />
       <rect width="100%" height="100%" fill="url(#grid)" />
 
-      {edges.map((edge) => (
-        <Edge
-          key={edge.id}
-          edge={edge}
-          source={nodeById(edge.source_id)}
-          target={nodeById(edge.target_id)}
-          isSelected={selected?.type === 'edge' && selected.id === edge.id}
-          onEdgeClick={onEdgeClick}
-          onLabelChange={onEdgeLabelChange}
-          onWeightChange={onEdgeWeightChange}
-        />
-      ))}
+      <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`}>
+        {edges.map((edge) => (
+          <Edge
+            key={edge.id}
+            edge={edge}
+            source={nodeById(edge.source_id)}
+            target={nodeById(edge.target_id)}
+            isSelected={selected?.type === 'edge' && selected.id === edge.id}
+            onEdgeClick={onEdgeClick}
+            onLabelChange={onEdgeLabelChange}
+            onWeightChange={onEdgeWeightChange}
+          />
+        ))}
 
-      <GhostLine ghostLine={ghostLine} />
+        <GhostLine ghostLine={ghostLine} />
 
-      {nodes.map((node) => (
-        <Node
-          key={node.id}
-          node={node}
-          mode={mode}
-          isSelected={selected?.type === 'node' && selected.id === node.id}
-          isEdgeSource={edgeSource === node.id}
-          isRouteNode={routeSequence?.includes(node.id)}
-          onPointerDown={onNodePointerDown}
-          onLabelChange={onLabelChange}
-        />
-      ))}
+        {nodes.map((node) => (
+          <Node
+            key={node.id}
+            node={node}
+            mode={mode}
+            isSelected={selected?.type === 'node' && selected.id === node.id}
+            isEdgeSource={edgeSource === node.id}
+            isRouteNode={routeSequence?.includes(node.id)}
+            onPointerDown={onNodePointerDown}
+            onLabelChange={onLabelChange}
+          />
+        ))}
+      </g>
+      {/* Draw arrowheads above nodes so they remain visible */}
+      <g transform={`translate(${pan.x},${pan.y}) scale(${scale})`} pointerEvents="none">
+        {edges.map((edge) => (
+          <ArrowHead key={edge.id + '-arrow'} source={nodeById(edge.source_id)} target={nodeById(edge.target_id)} color={selected?.type === 'edge' && selected.id === edge.id ? '#F39C12' : 'rgba(255,255,255,0.6)'} />
+        ))}
+      </g>
     </svg>
   );
 }

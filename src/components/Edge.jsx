@@ -7,11 +7,13 @@ function getEdgePoints(source, target) {
   const dist = Math.hypot(dx, dy) || 1;
   const ux = dx / dist;
   const uy = dy / dist;
+  const ARROW_LEN_LINE = 14; // length reserved for arrow shape
+  const END_GAP = NODE_RADIUS + ARROW_LEN_LINE + 6; // leave more space so arrow is outside node
   return {
     x1: source.x + ux * NODE_RADIUS,
     y1: source.y + uy * NODE_RADIUS,
-    x2: target.x - ux * (NODE_RADIUS + 12),
-    y2: target.y - uy * (NODE_RADIUS + 12),
+    x2: target.x - ux * END_GAP,
+    y2: target.y - uy * END_GAP,
     mx: (source.x + target.x) / 2,
     my: (source.y + target.y) / 2,
     angle: Math.atan2(dy, dx) * (180 / Math.PI),
@@ -46,7 +48,6 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
       <line
         x1={x1} y1={y1} x2={x2} y2={y2}
         stroke={lineColor} strokeWidth={isSelected ? 2.5 : 1.5}
-        markerEnd="url(#arrow)"
         style={{ transition: 'stroke 0.15s' }}
       />
 
@@ -109,6 +110,32 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
       </g>
     </g>
   );
+}
+
+export function ArrowHead({ source, target, color = 'rgba(255,255,255,0.6)' }) {
+  if (!source || !target) return null;
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const ARROW_LEN = 14;
+  const ARROW_WIDTH = 12;
+  // place tip further outside node border so it's fully visible
+  const TIP_OFFSET = 8;
+  const tipX = target.x - ux * (NODE_RADIUS + TIP_OFFSET);
+  const tipY = target.y - uy * (NODE_RADIUS + TIP_OFFSET);
+  const baseX = tipX - ux * ARROW_LEN;
+  const baseY = tipY - uy * ARROW_LEN;
+  // perpendicular
+  const px = -uy;
+  const py = ux;
+  const p1x = baseX + (px * ARROW_WIDTH) / 2;
+  const p1y = baseY + (py * ARROW_WIDTH) / 2;
+  const p2x = baseX - (px * ARROW_WIDTH) / 2;
+  const p2y = baseY - (py * ARROW_WIDTH) / 2;
+  const points = `${tipX},${tipY} ${p1x},${p1y} ${p2x},${p2y}`;
+  return <polygon points={points} fill={color} pointerEvents="none" />;
 }
 
 export function GhostLine({ ghostLine }) {
