@@ -1,19 +1,27 @@
 import React, { useState } from 'react';
 
-export function EdgeWeightModal({ sourceLabel, targetLabel, onConfirm, onCancel }) {
-  const [label, setLabel] = useState('');
-  const [weight, setWeight] = useState('0.50');
-  const [direction, setDirection] = useState('forward'); // 'forward' | 'backward' | 'both'
+export function EdgeWeightModal({ open = true, title = 'Nova Conexão', sourceLabel, targetLabel, onConfirm, onCancel, initialLabel = '', initialWeight = '0.50', initialDirection = 'forward' }) {
+  const [label, setLabel] = useState(initialLabel);
+  const [weight, setWeight] = useState(initialWeight);
+  const [direction, setDirection] = useState(initialDirection); // 'forward' | 'backward' | 'both'
+
+  React.useEffect(() => {
+    setLabel(initialLabel);
+    setWeight(initialWeight);
+    setDirection(initialDirection);
+  }, [initialLabel, initialWeight, initialDirection]);
 
   const handleConfirm = () => {
     const w = Math.min(1, Math.max(0, parseFloat(weight) || 0.5));
     onConfirm(label.trim(), w, direction);
   };
 
+  if (!open) return null;
+
   return (
     <div style={styles.overlay}>
       <div style={styles.modal}>
-        <p style={styles.title}>Nova Conexão</p>
+        <p style={styles.title}>{title}</p>
         <p style={styles.subtitle}>
           <span style={styles.node}>{sourceLabel}</span>
           <span style={styles.arrow}> ──{direction === 'forward' ? '→' : direction === 'backward' ? '←' : '↔'} </span>

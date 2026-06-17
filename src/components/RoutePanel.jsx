@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
+import { RouteModal } from './RouteModal';
 
-export function RoutePanel({ nodes, edges, routes, routeSequence, onRemoveRoute, onClearRoute, onSaveRoute }) {
+export function RoutePanel({ nodes, edges, routes, routeSequence, onRemoveRoute, onClearRoute, onSaveRoute, onUpdateRoute }) {
   const [routeName, setRouteName] = useState('');
   const [open, setOpen] = useState(true);
+  const [editingRoute, setEditingRoute] = useState(null);
 
   const nodeLabel = (id) => nodes.find((n) => n.id === id)?.label || '?';
 
@@ -81,7 +83,7 @@ export function RoutePanel({ nodes, edges, routes, routeSequence, onRemoveRoute,
             <div style={styles.routeList}>
               {routes.map((r) => (
                 <div key={r.id} style={styles.routeItem}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ flex: 1, minWidth: 0 }} onClick={() => setEditingRoute(r)}>
                     <p style={styles.routeName}>{r.name}</p>
                     <p style={styles.routeDesc}>{r.descricao}</p>
                     <p style={styles.routeMeta}>Peso total: {r.total_weight}</p>
@@ -90,6 +92,7 @@ export function RoutePanel({ nodes, edges, routes, routeSequence, onRemoveRoute,
                 </div>
               ))}
             </div>
+            <RouteModal open={!!editingRoute} route={editingRoute} nodes={nodes} onClose={() => setEditingRoute(null)} onSave={(r) => { onUpdateRoute(r.id, { name: r.name }); setEditingRoute(null); }} />
           </div>
         </div>
       )}

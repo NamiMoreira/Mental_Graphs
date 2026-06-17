@@ -72,12 +72,35 @@ export default function App() {
     setRouteSequence([]);
   };
 
+  const handleUpdateRoute = (routeId, patch) => {
+    graph.updateRoute(routeId, patch);
+  };
+
   const sourceLabel = canvas.pendingEdge
     ? graph.nodes.find((n) => n.id === canvas.pendingEdge.sourceId)?.label || '?'
     : '';
   const targetLabel = canvas.pendingEdge
     ? graph.nodes.find((n) => n.id === canvas.pendingEdge.targetId)?.label || '?'
     : '';
+
+  // edit edge modal state
+  const [editingEdge, setEditingEdge] = useState(null);
+  const editEdge = (edgeId) => {
+    const e = graph.edges.find((x) => x.id === edgeId);
+    if (!e) return;
+    const s = graph.nodes.find((n) => n.id === e.source_id)?.label || '?';
+    const t = graph.nodes.find((n) => n.id === e.target_id)?.label || '?';
+    setEditingEdge({ ...e, sourceLabel: s, targetLabel: t });
+  };
+
+  const handleEditEdgeConfirm = (labelVal, weightVal, directionVal) => {
+    // Update existing edge label/weight or create reversed as needed
+    if (!editingEdge) return;
+    // only update selected edge's label/weight (direction change not altering id)
+    graph.updateEdgeLabel(editingEdge.id, labelVal, graph.nodes);
+    graph.updateEdgeWeight(editingEdge.id, weightVal, graph.nodes);
+    setEditingEdge(null);
+  };
 
   return (
     <>
@@ -105,7 +128,7 @@ export default function App() {
         scale={canvas.scale}
         pan={canvas.pan}
         onWheel={canvas.onWheel}
-        onEdgeClick={canvas.onEdgeClick}
+        onEdgeClick={(e, edgeId) => { canvas.onEdgeClick(e, edgeId); editEdge(edgeId); }}
         onLabelChange={graph.updateNodeLabel}
         onEdgeLabelChange={(id, label) => graph.updateEdgeLabel(id, label, graph.nodes)}
         onEdgeWeightChange={(id, w) => graph.updateEdgeWeight(id, w, graph.nodes)}
@@ -119,6 +142,7 @@ export default function App() {
         onRemoveRoute={graph.removeRoute}
         onClearRoute={() => setRouteSequence([])}
         onSaveRoute={handleSaveRoute}
+        onUpdateRoute={handleUpdateRoute}
       />
 
       {canvas.pendingEdge?.targetId && (
@@ -127,6 +151,20 @@ export default function App() {
           targetLabel={targetLabel}
           onConfirm={handleEdgeConfirm}
           onCancel={handleEdgeCancel}
+        />
+      )}
+
+      {editingEdge && (
+        <EdgeWeightModal
+          open={true}
+          title="Editar Conexão"
+          sourceLabel={editingEdge.sourceLabel}
+          targetLabel={editingEdge.targetLabel}
+          initialLabel={editingEdge.label}
+          initialWeight={String(editingEdge.weight ?? 0.5)}
+          initialDirection={editingEdge.directed ? 'forward' : 'both'}
+          onConfirm={handleEditEdgeConfirm}
+          onCancel={() => setEditingEdge(null)}
         />
       )}
 

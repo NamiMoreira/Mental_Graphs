@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { MODES, KEYS, NODE_RADIUS } from '../constants';
 
 export function useCanvas({ nodes, addNode, moveNode, commitNodeMove, removeNode, addEdge, removeEdge }) {
@@ -40,6 +40,10 @@ export function useCanvas({ nodes, addNode, moveNode, commitNodeMove, removeNode
       const clientY = e.touches ? e.touches[0].clientY : e.clientY;
       // clear selection when clicking background
       if (mode === MODES.SELECT) setSelected(null);
+      // always clear any ghost/pending edge when clicking background
+      setEdgeSource(null);
+      setGhostLine(null);
+      setPendingEdge(null);
       panningRef.current = { startX: clientX, startY: clientY, startPan: { ...pan } };
       return;
     }
@@ -47,11 +51,21 @@ export function useCanvas({ nodes, addNode, moveNode, commitNodeMove, removeNode
     if (mode === MODES.ADD_NODE) {
       addNode(x, y);
     } else if (mode === MODES.ADD_EDGE) {
+      // clicking background in add-edge cancels any pending edge
       setEdgeSource(null);
       setGhostLine(null);
       setPendingEdge(null);
     }
   }, [mode, getSVGPoint, addNode, pan]);
+
+  // Clear ghost line and pending edge when mode changes away from ADD_EDGE
+  useEffect(() => {
+    if (mode !== MODES.ADD_EDGE) {
+      setEdgeSource(null);
+      setGhostLine(null);
+      setPendingEdge(null);
+    }
+  }, [mode]);
 
   const onNodePointerDown = useCallback((e, nodeId) => {
     e.stopPropagation();

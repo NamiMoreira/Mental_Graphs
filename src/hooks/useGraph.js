@@ -158,6 +158,11 @@ export function useGraph(graphId) {
     return route;
   }, [graphId, buildRouteDescricao]);
 
+  const updateRoute = useCallback(async (routeId, patch) => {
+    setRoutes((prev) => prev.map((r) => r.id === routeId ? { ...r, ...patch } : r));
+    await tryApi(() => api.updateRoute(graphId, routeId, patch));
+  }, [graphId]);
+
   const removeRoute = useCallback(async (routeId) => {
     setRoutes((prev) => prev.filter((r) => r.id !== routeId));
     await tryApi(() => api.deleteRoute(graphId, routeId));

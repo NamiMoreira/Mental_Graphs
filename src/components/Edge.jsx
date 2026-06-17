@@ -1,35 +1,38 @@
 import React, { useState } from 'react';
 import { NODE_RADIUS } from '../constants';
 
-function getEdgePoints(source, target) {
-  const dx = target.x - source.x;
-  const dy = target.y - source.y;
-  const dist = Math.hypot(dx, dy) || 1;
-  const ux = dx / dist;
-  const uy = dy / dist;
-  const ARROW_LEN_LINE = 14; // length reserved for arrow shape
-  const END_GAP = NODE_RADIUS + ARROW_LEN_LINE + 6; // leave more space so arrow is outside node
-  return {
-    x1: source.x + ux * NODE_RADIUS,
-    y1: source.y + uy * NODE_RADIUS,
-    x2: target.x - ux * END_GAP,
-    y2: target.y - uy * END_GAP,
-    mx: (source.x + target.x) / 2,
-    my: (source.y + target.y) / 2,
-    angle: Math.atan2(dy, dx) * (180 / Math.PI),
-  };
-}
-
-export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelChange, onWeightChange }) {
+export function Edge({ edge, source, target, geom, isSelected, onEdgeClick, onLabelChange, onWeightChange }) {
   const [editingLabel, setEditingLabel] = useState(false);
   const [editingWeight, setEditingWeight] = useState(false);
   const [draftLabel, setDraftLabel] = useState(edge.label || '');
   const [draftWeight, setDraftWeight] = useState(String(edge.weight ?? 0.5));
+  if (!source || !target || !geom) return null;
 
-  if (!source || !target) return null;
-
-  const { x1, y1, x2, y2, mx, my, angle } = getEdgePoints(source, target);
+  const { x1, y1, x2, y2, mx, my, angle, cx, cy, d, offset = 0, labelT = 0.5 } = geom;
   const normalAngle = angle > 90 || angle < -90 ? angle + 180 : angle;
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const dist = Math.hypot(dx, dy) || 1;
+  const ux = dx / dist;
+  const uy = dy / dist;
+  const px = -uy;
+  const py = ux;
+  const side = offset === 0 ? 1 : Math.sign(offset);
+  const labelPadBase = 12;
+  const labelPad = labelPadBase + Math.abs(offset) * 0.6;
+  // compute point along quadratic Bezier at t = labelT
+  const t = labelT;
+  const mt = 1 - t;
+  const bx = mt * mt * x1 + 2 * mt * t * cx + t * t * x2;
+  const by = mt * mt * y1 + 2 * mt * t * cy + t * t * y2;
+  // derivative for tangent
+  const dxdt = 2 * mt * (cx - x1) + 2 * t * (x2 - cx);
+  const dydt = 2 * mt * (cy - y1) + 2 * t * (y2 - cy);
+  const dlen = Math.hypot(dxdt, dydt) || 1;
+  const nx = -dydt / dlen; // normal vector
+  const ny = dxdt / dlen;
+  const lx = bx + nx * labelPad * side;
+  const ly = by + ny * labelPad * side;
   const lineColor = isSelected ? '#F39C12' : 'rgba(255,255,255,0.6)';
 
   const commitLabel = () => {
@@ -44,16 +47,12 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
 
   return (
     <g onClick={(e) => onEdgeClick(e, edge.id)} style={{ cursor: 'pointer' }}>
-      <line x1={x1} y1={y1} x2={x2} y2={y2} stroke="transparent" strokeWidth={22} />
-      <line
-        x1={x1} y1={y1} x2={x2} y2={y2}
-        stroke={lineColor} strokeWidth={isSelected ? 2.5 : 1.5}
-        style={{ transition: 'stroke 0.15s' }}
-      />
+      <path d={d} stroke="transparent" strokeWidth={22} fill="none" />
+      <path d={d} stroke={lineColor} strokeWidth={isSelected ? 2.5 : 1.5} fill="none" style={{ transition: 'stroke 0.15s' }} />
 
       {/* Label */}
-      <g transform={`translate(${mx},${my}) rotate(${normalAngle})`}>
-        <rect x={-38} y={-12} width={76} height={24} rx={12} fill="rgba(15,20,35,0.88)" stroke={lineColor} strokeWidth={1} />
+      <g transform={`translate(${lx},${ly})`}>
+        <rect x={-48} y={-14} width={96} height={28} rx={12} fill="rgba(15,20,35,0.88)" stroke={lineColor} strokeWidth={1} />
         {!editingLabel ? (
           <text
             textAnchor="middle" dominantBaseline="middle"
@@ -61,10 +60,10 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
             onDoubleClick={(e) => { e.stopPropagation(); setDraftLabel(edge.label || ''); setEditingLabel(true); }}
             style={{ userSelect: 'none' }}
           >
-            {(edge.label || 'aresta').slice(0, 10)}
+            {(edge.label || 'aresta').slice(0, 16)}
           </text>
         ) : (
-          <foreignObject x={-36} y={-10} width={72} height={20}>
+          <foreignObject x={-44} y={-12} width={88} height={24}>
             <input
               autoFocus value={draftLabel}
               onChange={(e) => setDraftLabel(e.target.value)}
@@ -80,8 +79,8 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
         )}
       </g>
 
-      {/* Weight badge */}
-      <g transform={`translate(${mx + 42},${my - 18})`}>
+      {/* Weight badge placed to the side based on edge side */}
+      <g transform={`translate(${lx + (side * 56)},${ly - 6})`}>
         <rect x={-18} y={-10} width={36} height={20} rx={10} fill="#F39C12" />
         {!editingWeight ? (
           <text
@@ -112,22 +111,20 @@ export function Edge({ edge, source, target, isSelected, onEdgeClick, onLabelCha
   );
 }
 
-export function ArrowHead({ source, target, color = 'rgba(255,255,255,0.6)' }) {
-  if (!source || !target) return null;
-  const dx = target.x - source.x;
-  const dy = target.y - source.y;
+export function ArrowHead({ source, target, ctrl, color = 'rgba(255,255,255,0.6)' }) {
+  if (!source || !target || !ctrl) return null;
+  const dx = target.x - ctrl.cx;
+  const dy = target.y - ctrl.cy;
   const dist = Math.hypot(dx, dy) || 1;
   const ux = dx / dist;
   const uy = dy / dist;
   const ARROW_LEN = 14;
   const ARROW_WIDTH = 12;
-  // place tip further outside node border so it's fully visible
   const TIP_OFFSET = 8;
   const tipX = target.x - ux * (NODE_RADIUS + TIP_OFFSET);
   const tipY = target.y - uy * (NODE_RADIUS + TIP_OFFSET);
   const baseX = tipX - ux * ARROW_LEN;
   const baseY = tipY - uy * ARROW_LEN;
-  // perpendicular
   const px = -uy;
   const py = ux;
   const p1x = baseX + (px * ARROW_WIDTH) / 2;
